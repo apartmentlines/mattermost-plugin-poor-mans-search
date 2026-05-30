@@ -1,0 +1,5 @@
+.cache/
+bleve/
+build/bin/
+dist/
+server/dist/

@@ -1,0 +1,66 @@
+# Run with:
+#   caddy run --config Caddyfile
+#
+# Browse Mattermost through http://localhost:8064. Caddy forwards all traffic to
+# Mattermost on localhost:8065, except native search API calls are rewritten to
+# the Poor Man's Search plugin API.
+#
+# Mattermost's ServiceSettings.SiteURL must also be http://localhost:8064 while
+# using this proxy, otherwise websocket Origin checks will reject the browser.
+
+http://localhost:8064 {
+	@team_post_search {
+		method POST
+		path_regexp team_post_search ^/api/v4/teams/([^/]+)/posts/search$
+	}
+	handle @team_post_search {
+		rewrite * /plugins/com.mattermost.plugin-poor-mans-search/api/v1/teams/{re.team_post_search.1}/posts/search
+		reverse_proxy 127.0.0.1:8065 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	@post_search {
+		method POST
+		path /api/v4/posts/search
+	}
+	handle @post_search {
+		rewrite * /plugins/com.mattermost.plugin-poor-mans-search/api/v1/posts/search
+		reverse_proxy 127.0.0.1:8065 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	@team_file_search {
+		method POST
+		path_regexp team_file_search ^/api/v4/teams/([^/]+)/files/search$
+	}
+	handle @team_file_search {
+		rewrite * /plugins/com.mattermost.plugin-poor-mans-search/api/v1/teams/{re.team_file_search.1}/files/search
+		reverse_proxy 127.0.0.1:8065 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	@file_search {
+		method POST
+		path /api/v4/files/search
+	}
+	handle @file_search {
+		rewrite * /plugins/com.mattermost.plugin-poor-mans-search/api/v1/files/search
+		reverse_proxy 127.0.0.1:8065 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8065 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}

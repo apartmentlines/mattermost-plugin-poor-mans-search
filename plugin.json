@@ -1,0 +1,57 @@
+{
+    "id": "com.mattermost.plugin-poor-mans-search",
+    "name": "Plugin Poor Man's Search",
+    "description": "Bleve-backed search for Mattermost installs without the native Bleve backend.",
+    "homepage_url": "https://github.com/apartmentlines/mattermost-plugin-poor-mans-search",
+    "support_url": "https://github.com/apartmentlines/mattermost-plugin-poor-mans-search/issues",
+    "min_server_version": "11.0.0",
+    "server": {
+        "executables": {
+            "linux-amd64": "server/dist/plugin-linux-amd64",
+            "linux-arm64": "server/dist/plugin-linux-arm64",
+            "darwin-amd64": "server/dist/plugin-darwin-amd64",
+            "darwin-arm64": "server/dist/plugin-darwin-arm64",
+            "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+        }
+    },
+    "webapp": {
+        "bundle_path": "webapp/dist/main.js"
+    },
+    "settings_schema": {
+        "header": "Configure Bleve search indexes and /search result display.",
+        "footer": "",
+        "settings": [
+            {
+                "key": "IndexDir",
+                "display_name": "Index directory",
+                "type": "text",
+                "help_text": "Filesystem directory where Bleve indexes will be stored.",
+                "default": "data/poor-mans-search/bleve",
+                "placeholder": "data/poor-mans-search/bleve"
+            },
+            {
+                "key": "SearchResultDisplay",
+                "display_name": "/search command result display",
+                "type": "radio",
+                "help_text": "Inline results are displayed in the current channel as an ephemeral message. Sidebar results are displayed in Mattermost's search sidebar.",
+                "default": "inline",
+                "options": [
+                    {
+                        "display_name": "Inline results",
+                        "value": "inline"
+                    },
+                    {
+                        "display_name": "Sidebar results",
+                        "value": "sidebar"
+                    }
+                ]
+            },
+            {
+                "key": "SearchAdmin",
+                "display_name": "Index admin",
+                "type": "custom",
+                "help_text": "Start rebuilds, purge indexes, and inspect recent rebuild status."
+            }
+        ]
+    }
+}
