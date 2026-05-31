@@ -1,19 +1,27 @@
 GO ?= go
 GOIMPORTS ?= $(shell command -v goimports 2> /dev/null)
+GOPATH ?= $(shell $(GO) env GOPATH)
 GO_TEST_FLAGS ?= -race
 GO_BUILD_FLAGS ?=
 MM_DEBUG ?=
-PLUGIN_ID := com.mattermost.plugin-poor-mans-search
-PLUGIN_VERSION ?= 0.0.0-dev
-BUNDLE_NAME ?= $(PLUGIN_ID)-$(PLUGIN_VERSION).tar.gz
 DLV_DEBUG_PORT := 2346
 DEFAULT_GOOS := $(shell $(GO) env GOOS)
 DEFAULT_GOARCH := $(shell $(GO) env GOARCH)
-export GOCACHE := $(PWD)/.cache/go-build
-export GOPATH := $(PWD)/.cache/gopath
-export GOBIN ?= $(PWD)/build/bin
-export GOLANGCI_LINT_CACHE := $(PWD)/.cache/golangci-lint
+
 export GO111MODULE=on
+
+# We need to export GOBIN to allow it to be set
+# for processes spawned from the Makefile.
+export GOBIN ?= $(PWD)/bin
+
+## Define the default target (make all)
+.PHONY: default
+default: all
+
+# Verify environment, and define PLUGIN_ID, PLUGIN_VERSION, HAS_SERVER and HAS_WEBAPP as needed.
+include build/setup.mk
+
+BUNDLE_NAME ?= $(PLUGIN_ID)-$(PLUGIN_VERSION).tar.gz
 
 ifneq ($(MM_DEBUG),)
 	GO_BUILD_GCFLAGS = -gcflags "all=-N -l"
@@ -21,9 +29,42 @@ else
 	GO_BUILD_GCFLAGS =
 endif
 
-## Define the default target (make all)
-.PHONY: default
-default: all
+# ====================================================================================
+# Used for semver bumping
+PROTECTED_BRANCH := main
+APP_NAME := $(shell basename -s .git `git config --get remote.origin.url`)
+CURRENT_VERSION := $(shell git describe --abbrev=0 --tags)
+VERSION_PARTS := $(subst ., ,$(subst v,,$(subst -rc, ,$(CURRENT_VERSION))))
+MAJOR := $(word 1,$(VERSION_PARTS))
+MINOR := $(word 2,$(VERSION_PARTS))
+PATCH := $(word 3,$(VERSION_PARTS))
+RC := $(shell echo $(CURRENT_VERSION) | grep -oE 'rc[0-9]+' | sed 's/rc//')
+
+define check_protected_branch
+	@current_branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if ! echo "$(PROTECTED_BRANCH)" | grep -wq "$$current_branch" && ! echo "$$current_branch" | grep -q "^release"; then \
+		echo "Error: Tagging is only allowed from $(PROTECTED_BRANCH) or release branches. You are on $$current_branch branch."; \
+		exit 1; \
+	fi
+endef
+
+define check_pending_pulls
+	@git fetch; \
+	current_branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/$$current_branch)" ]; then \
+		echo "Error: Your branch is not up to date with upstream. Please pull the latest changes before performing a release"; \
+		exit 1; \
+	fi
+endef
+
+define prompt_approval
+	@read -p "About to bump $(APP_NAME) to version $(1), approve? (y/n) " userinput; \
+	if [ "$$userinput" != "y" ]; then \
+		echo "Bump aborted."; \
+		exit 1; \
+	fi
+endef
+# ====================================================================================
 
 ## Checks the code style, tests, builds and bundles the plugin.
 .PHONY: all
@@ -32,13 +73,12 @@ all: check-style test dist
 ## Ensures the plugin manifest is valid
 .PHONY: manifest-check
 manifest-check:
-	@test -f plugin.json
-	@$(GO) test ./server -run '^$$' >/dev/null
+	build/bin/manifest check
 
 ## Propagates plugin manifest information into the server/ and webapp/ folders.
 .PHONY: apply
 apply:
-	@echo "No generated manifest files to apply for this plugin."
+	build/bin/manifest apply
 
 ## Install go tools
 .PHONY: install-go-tools
@@ -49,15 +89,11 @@ install-go-tools:
 
 ## Runs eslint and golangci-lint
 .PHONY: check-style
-check-style: manifest-check
+check-style: manifest-check install-go-tools
 	$(GO) vet ./...
-	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './.cache/*' -not -path './dist/*' -not -path './server/dist/*'))" || \
-		(echo "Go files need formatting; run make format"; exit 1)
-	@if [ -x "$(GOBIN)/golangci-lint" ]; then \
-		$(GOBIN)/golangci-lint run ./...; \
-	else \
-		echo "Skipping golangci-lint; run make install-go-tools to install it."; \
-	fi
+	@unformatted="$$(find . \( -path './.git' -o -path './.cache' -o -path './dist' -o -path './server/dist' \) -prune -o -name '*.go' -print | xargs gofmt -l)"; \
+		test -z "$$unformatted" || (echo "Go files need formatting; run make format"; echo "$$unformatted"; exit 1)
+	$(GOBIN)/golangci-lint run ./...
 
 ## Builds the server, if it exists, for all supported architectures, unless MM_SERVICESETTINGS_ENABLEDEVELOPER is set.
 .PHONY: server
@@ -89,7 +125,7 @@ bundle: server webapp
 	rm -rf dist
 	mkdir -p dist/$(PLUGIN_ID)/server
 	mkdir -p dist/$(PLUGIN_ID)/webapp
-	cp plugin.json dist/$(PLUGIN_ID)/
+	build/bin/manifest dist
 	cp -r server/dist dist/$(PLUGIN_ID)/server/
 	cp -r webapp/dist dist/$(PLUGIN_ID)/webapp/
 	cd dist && tar -czf $(BUNDLE_NAME) $(PLUGIN_ID)
@@ -160,19 +196,16 @@ detach: setup-attach
 ## Runs any lints and unit tests defined for the server and webapp, if they exist.
 .PHONY: test
 test: apply
-	mkdir -p $(GOCACHE) $(GOPATH)
 	$(GO) test $(GO_TEST_FLAGS) ./...
 
 ## Runs tests verbosely, showing output for each test.
 .PHONY: vtest
 vtest: apply
-	mkdir -p $(GOCACHE) $(GOPATH)
 	$(GO) test $(GO_TEST_FLAGS) -v ./...
 
 ## Runs any lints and unit tests defined for the server and webapp, if they exist, optimized for a CI environment.
 .PHONY: test-ci
 test-ci: apply
-	mkdir -p $(GOCACHE) $(GOPATH)
 	$(GO) test $(GO_TEST_FLAGS) -v ./...
 
 ## Creates a coverage report for the server code.
@@ -215,7 +248,7 @@ kill: detach
 ## Clean removes all build artifacts.
 .PHONY: clean
 clean:
-	rm -rf dist server/dist webapp/dist build/bin server/coverage.txt server/coverage.html
+	rm -rf dist server/dist webapp/dist bin build/bin server/coverage.txt server/coverage.html
 
 ## Prints recent plugin log entries from Mattermost.
 .PHONY: logs
@@ -250,30 +283,74 @@ format:
 .PHONY: patch minor major patch-rc minor-rc major-rc
 ## Bumps the patch version (semver).
 patch:
-	@echo "Release tagging is not wired for this repo yet."
-	@exit 1
+	$(call check_protected_branch)
+	$(call check_pending_pulls)
+	@$(eval PATCH := $(shell echo $$(($(PATCH)+1))))
+	$(call prompt_approval,$(MAJOR).$(MINOR).$(PATCH))
+	@echo Bumping $(APP_NAME) to Patch version $(MAJOR).$(MINOR).$(PATCH)
+	git tag -s -a v$(MAJOR).$(MINOR).$(PATCH) -m "Bumping $(APP_NAME) to Patch version $(MAJOR).$(MINOR).$(PATCH)"
+	git push origin v$(MAJOR).$(MINOR).$(PATCH)
+	@echo Bumped $(APP_NAME) to Patch version $(MAJOR).$(MINOR).$(PATCH)
 
 ## Bumps the minor version (semver).
 minor:
-	@echo "Release tagging is not wired for this repo yet."
-	@exit 1
+	$(call check_protected_branch)
+	$(call check_pending_pulls)
+	@$(eval MINOR := $(shell echo $$(($(MINOR)+1))))
+	@$(eval PATCH := 0)
+	$(call prompt_approval,$(MAJOR).$(MINOR).$(PATCH))
+	@echo Bumping $(APP_NAME) to Minor version $(MAJOR).$(MINOR).$(PATCH)
+	git tag -s -a v$(MAJOR).$(MINOR).$(PATCH) -m "Bumping $(APP_NAME) to Minor version $(MAJOR).$(MINOR).$(PATCH)"
+	git push origin v$(MAJOR).$(MINOR).$(PATCH)
+	@echo Bumped $(APP_NAME) to Minor version $(MAJOR).$(MINOR).$(PATCH)
 
 ## Bumps the major version (semver).
 major:
-	@echo "Release tagging is not wired for this repo yet."
-	@exit 1
+	$(call check_protected_branch)
+	$(call check_pending_pulls)
+	@$(eval MAJOR := $(shell echo $$(($(MAJOR)+1))))
+	@$(eval MINOR := 0)
+	@$(eval PATCH := 0)
+	$(call prompt_approval,$(MAJOR).$(MINOR).$(PATCH))
+	@echo Bumping $(APP_NAME) to Major version $(MAJOR).$(MINOR).$(PATCH)
+	git tag -s -a v$(MAJOR).$(MINOR).$(PATCH) -m "Bumping $(APP_NAME) to Major version $(MAJOR).$(MINOR).$(PATCH)"
+	git push origin v$(MAJOR).$(MINOR).$(PATCH)
+	@echo Bumped $(APP_NAME) to Major version $(MAJOR).$(MINOR).$(PATCH)
 
 ## Bumps the patch release candidate version (semver).
 patch-rc:
-	@echo "Release tagging is not wired for this repo yet."
-	@exit 1
+	$(call check_protected_branch)
+	$(call check_pending_pulls)
+	@$(eval RC := $(shell echo $$(($(RC)+1))))
+	$(call prompt_approval,$(MAJOR).$(MINOR).$(PATCH)-rc$(RC))
+	@echo Bumping $(APP_NAME) to Patch RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
+	git tag -s -a v$(MAJOR).$(MINOR).$(PATCH)-rc$(RC) -m "Bumping $(APP_NAME) to Patch RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)"
+	git push origin v$(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
+	@echo Bumped $(APP_NAME) to Patch RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
 
 ## Bumps the minor release candidate version (semver).
 minor-rc:
-	@echo "Release tagging is not wired for this repo yet."
-	@exit 1
+	$(call check_protected_branch)
+	$(call check_pending_pulls)
+	@$(eval MINOR := $(shell echo $$(($(MINOR)+1))))
+	@$(eval PATCH := 0)
+	@$(eval RC := 1)
+	$(call prompt_approval,$(MAJOR).$(MINOR).$(PATCH)-rc$(RC))
+	@echo Bumping $(APP_NAME) to Minor RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
+	git tag -s -a v$(MAJOR).$(MINOR).$(PATCH)-rc$(RC) -m "Bumping $(APP_NAME) to Minor RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)"
+	git push origin v$(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
+	@echo Bumped $(APP_NAME) to Minor RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
 
 ## Bumps the major release candidate version (semver).
 major-rc:
-	@echo "Release tagging is not wired for this repo yet."
-	@exit 1
+	$(call check_protected_branch)
+	$(call check_pending_pulls)
+	@$(eval MAJOR := $(shell echo $$(($(MAJOR)+1))))
+	@$(eval MINOR := 0)
+	@$(eval PATCH := 0)
+	@$(eval RC := 1)
+	$(call prompt_approval,$(MAJOR).$(MINOR).$(PATCH)-rc$(RC))
+	@echo Bumping $(APP_NAME) to Major RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
+	git tag -s -a v$(MAJOR).$(MINOR).$(PATCH)-rc$(RC) -m "Bumping $(APP_NAME) to Major RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)"
+	git push origin v$(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
+	@echo Bumped $(APP_NAME) to Major RC version $(MAJOR).$(MINOR).$(PATCH)-rc$(RC)
