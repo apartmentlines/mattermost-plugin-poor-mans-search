@@ -193,6 +193,30 @@ func TestSearchEngineIndexesAndSearchesFiles(t *testing.T) {
 	}
 }
 
+func TestSearchEngineDeletesUnattachedFilesInsteadOfIndexingThem(t *testing.T) {
+	engine := newTestSearchEngine(t)
+
+	channel := &model.Channel{Id: model.NewId(), TeamId: model.NewId()}
+	file := &model.FileInfo{Id: model.NewId(), PostId: model.NewId(), ChannelId: channel.Id, CreatorId: model.NewId(), CreateAt: 100, Name: "boards.pdf", Extension: "pdf", Content: "needle"}
+	if err := engine.IndexFile(file); err != nil {
+		t.Fatalf("index attached file: %v", err)
+	}
+
+	file.PostId = ""
+	file.ChannelId = ""
+	if err := engine.IndexFile(file); err != nil {
+		t.Fatalf("index unattached file: %v", err)
+	}
+
+	ids, err := engine.SearchFiles(model.ChannelList{channel}, model.ParseSearchParams("needle", 0), 0, 10)
+	if err != nil {
+		t.Fatalf("search files: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("expected unattached file to be removed from index, got %#v", ids)
+	}
+}
+
 func TestSearchEngineFileFilters(t *testing.T) {
 	engine := newTestSearchEngine(t)
 

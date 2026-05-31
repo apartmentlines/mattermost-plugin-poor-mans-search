@@ -75,8 +75,8 @@ func TestPostgresSchemaV11FetchFileBatchScansRows(t *testing.T) {
 	db, mock := newSQLMock(t)
 	rows := sqlmock.NewRows([]string{"Id", "CreatorId", "PostId", "ChannelId", "CreateAt", "DeleteAt", "Name", "Extension", "Content"}).
 		AddRow("file1", "user1", "post1", "channel1", int64(100), int64(0), "packet.pdf", "pdf", "welcome packet").
-		AddRow("file2", "user2", "post2", "channel2", int64(200), int64(0), "empty.txt", "txt", nil)
-	mock.ExpectQuery("SELECT Id, CreatorId, PostId").
+		AddRow("file2", "user2", "post2", "", int64(200), int64(0), "empty.txt", "txt", nil)
+	mock.ExpectQuery("SELECT Id, CreatorId, PostId, COALESCE\\(ChannelId, ''\\) AS ChannelId").
 		WithArgs(int64(50), "cursor", 2).
 		WillReturnRows(rows)
 
@@ -90,8 +90,8 @@ func TestPostgresSchemaV11FetchFileBatchScansRows(t *testing.T) {
 	if batch[0].Id != "file1" || batch[0].Content != "welcome packet" || batch[0].Extension != "pdf" {
 		t.Fatalf("unexpected first file: %#v", batch[0])
 	}
-	if batch[1].Id != "file2" || batch[1].Content != "" {
-		t.Fatalf("expected nil content to become empty string, got %#v", batch[1])
+	if batch[1].Id != "file2" || batch[1].ChannelId != "" || batch[1].Content != "" {
+		t.Fatalf("expected nil channel/content to become empty strings, got %#v", batch[1])
 	}
 	assertSQLExpectations(t, mock)
 }

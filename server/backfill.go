@@ -106,7 +106,7 @@ func (postgresSchemaV11) FetchPostBatch(ctx context.Context, db *sql.DB, cursor 
 
 func (postgresSchemaV11) FetchFileBatch(ctx context.Context, db *sql.DB, cursor backfillCursor, limit int) ([]*model.FileInfo, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT Id, CreatorId, PostId, ChannelId, CreateAt, DeleteAt, Name, Extension, Content
+		SELECT Id, CreatorId, PostId, COALESCE(ChannelId, '') AS ChannelId, CreateAt, DeleteAt, Name, Extension, Content
 		FROM FileInfo
 		WHERE (CreateAt, Id) > ($1, $2)
 		ORDER BY CreateAt ASC, Id ASC
