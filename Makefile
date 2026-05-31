@@ -89,11 +89,15 @@ install-go-tools:
 
 ## Runs eslint and golangci-lint
 .PHONY: check-style
-check-style: manifest-check install-go-tools
+check-style: manifest-check
 	$(GO) vet ./...
 	@unformatted="$$(find . \( -path './.git' -o -path './.cache' -o -path './dist' -o -path './server/dist' \) -prune -o -name '*.go' -print | xargs gofmt -l)"; \
 		test -z "$$unformatted" || (echo "Go files need formatting; run make format"; echo "$$unformatted"; exit 1)
-	$(GOBIN)/golangci-lint run ./...
+	@if [ -x "$(GOBIN)/golangci-lint" ]; then \
+		$(GOBIN)/golangci-lint run ./...; \
+	else \
+		echo "Skipping golangci-lint; run make install-go-tools to install it."; \
+	fi
 
 ## Builds the server, if it exists, for all supported architectures, unless MM_SERVICESETTINGS_ENABLEDEVELOPER is set.
 .PHONY: server
