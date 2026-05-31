@@ -38,7 +38,7 @@ make bundle
 /search your search terms
 ```
 
-Inline mode rewrites `/search` slash commands as an ephemeral message in the current channel, and use standard Mattermost links for posts, channels, and files.
+Inline mode rewrites `/search` slash commands to use Bleve, returning an ephemeral message in the current channel which uses standard Mattermost links for posts, channels, and files.
 
 ## Search Box
 
