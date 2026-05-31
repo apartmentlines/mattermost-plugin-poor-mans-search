@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "name": "mattermost-plugin-webapp-stub",
+  "scripts": {
+    "build": "echo 'no webapp build required'"
+  }
+}
