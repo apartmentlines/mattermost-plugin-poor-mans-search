@@ -108,6 +108,48 @@ func TestSearchEnginePostFilters(t *testing.T) {
 	}
 }
 
+func TestSearchEngineExactHashtagSearchesPosts(t *testing.T) {
+	engine := newTestSearchEngine(t)
+
+	channel := &model.Channel{Id: model.NewId(), TeamId: model.NewId()}
+	matching := &model.Post{Id: model.NewId(), ChannelId: channel.Id, UserId: model.NewId(), CreateAt: 300, Message: "tagged", Hashtags: "#bug #user_testing #per.iod #check-in #마케팅"}
+	caseVariant := &model.Post{Id: model.NewId(), ChannelId: channel.Id, UserId: model.NewId(), CreateAt: 200, Message: "case tagged", Hashtags: "#BUG"}
+	partial := &model.Post{Id: model.NewId(), ChannelId: channel.Id, UserId: model.NewId(), CreateAt: 100, Message: "partial", Hashtags: "#check"}
+	for _, post := range []*model.Post{matching, caseVariant, partial} {
+		if err := engine.IndexPost(post, channel.TeamId); err != nil {
+			t.Fatalf("index post: %v", err)
+		}
+	}
+
+	for _, terms := range []string{"#bug", "#user_testing", "#per.iod", "#check-in", "#마케팅"} {
+		t.Run(terms, func(t *testing.T) {
+			hits, err := engine.SearchPosts(model.ChannelList{channel}, model.ParseSearchParams(terms, 0), 0, 10)
+			if err != nil {
+				t.Fatalf("search hashtag posts: %v", err)
+			}
+			if len(hits) == 0 || hits[0].ID != matching.Id {
+				t.Fatalf("expected matching post first for %s, got %#v", terms, hits)
+			}
+		})
+	}
+
+	hits, err := engine.SearchPosts(model.ChannelList{channel}, model.ParseSearchParams("#check-in", 0), 0, 10)
+	if err != nil {
+		t.Fatalf("search exact hashtag: %v", err)
+	}
+	if len(hits) != 1 || hits[0].ID != matching.Id {
+		t.Fatalf("expected exact #check-in match only, got %#v", hits)
+	}
+
+	hits, err = engine.SearchPosts(model.ChannelList{channel}, model.ParseSearchParams("-#bug", 0), 0, 10)
+	if err != nil {
+		t.Fatalf("search excluded hashtag: %v", err)
+	}
+	if len(hits) != 1 || hits[0].ID != partial.Id {
+		t.Fatalf("expected only post without #bug, got %#v", hits)
+	}
+}
+
 func TestHighlightedTermsExtractsMarkedTerms(t *testing.T) {
 	fragments := []string{
 		"<mark>Apples</mark> and oranges and <mark>apple</mark>",
@@ -148,6 +190,45 @@ func TestSearchEngineIndexesAndSearchesFiles(t *testing.T) {
 	}
 	if len(ids) != 1 || ids[0] != matching.Id {
 		t.Fatalf("expected only matching file %s, got %#v", matching.Id, ids)
+	}
+}
+
+func TestSearchEngineFileFilters(t *testing.T) {
+	engine := newTestSearchEngine(t)
+
+	userID := model.NewId()
+	otherUserID := model.NewId()
+	channel := &model.Channel{Id: model.NewId(), TeamId: model.NewId()}
+	otherChannel := &model.Channel{Id: model.NewId(), TeamId: channel.TeamId}
+	matching := &model.FileInfo{Id: model.NewId(), PostId: model.NewId(), ChannelId: channel.Id, CreatorId: userID, CreateAt: 300, Name: "release.pdf", Extension: "pdf", Content: "needle"}
+	wrongUser := &model.FileInfo{Id: model.NewId(), PostId: model.NewId(), ChannelId: channel.Id, CreatorId: otherUserID, CreateAt: 200, Name: "release.pdf", Extension: "pdf", Content: "needle"}
+	wrongChannel := &model.FileInfo{Id: model.NewId(), PostId: model.NewId(), ChannelId: otherChannel.Id, CreatorId: userID, CreateAt: 100, Name: "release.pdf", Extension: "pdf", Content: "needle"}
+	for _, file := range []*model.FileInfo{matching, wrongUser, wrongChannel} {
+		if err := engine.IndexFile(file); err != nil {
+			t.Fatalf("index file: %v", err)
+		}
+	}
+
+	params := []*model.SearchParams{{
+		Terms:      "release",
+		InChannels: []string{channel.Id},
+		FromUsers:  []string{userID},
+	}}
+	ids, err := engine.SearchFiles(model.ChannelList{channel, otherChannel}, params, 0, 10)
+	if err != nil {
+		t.Fatalf("search files: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != matching.Id {
+		t.Fatalf("expected only filtered file %s, got %#v", matching.Id, ids)
+	}
+
+	params[0].ExcludedUsers = []string{userID}
+	ids, err = engine.SearchFiles(model.ChannelList{channel, otherChannel}, params, 0, 10)
+	if err != nil {
+		t.Fatalf("search files with excluded user: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("expected file excluded by creator, got %#v", ids)
 	}
 }
 

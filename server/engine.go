@@ -24,14 +24,14 @@ const (
 )
 
 type blvPost struct {
-	ID        string
-	TeamID    string
-	ChannelID string
-	UserID    string
-	CreateAt  int64
-	Message   string
-	Type      string
-	Hashtags  []string
+	ID            string
+	TeamID        string
+	ChannelID     string
+	UserID        string
+	CreateAt      int64
+	Message       string
+	Type          string
+	HashtagTokens []string
 }
 
 type blvFile struct {
@@ -227,7 +227,7 @@ func postIndexMapping() *mapping.IndexMappingImpl {
 	doc.AddFieldMappingsAt("CreateAt", bleve.NewNumericFieldMapping())
 	doc.AddFieldMappingsAt("Message", standardField())
 	doc.AddFieldMappingsAt("Type", keywordField())
-	doc.AddFieldMappingsAt("Hashtags", standardField())
+	doc.AddFieldMappingsAt("HashtagTokens", keywordField())
 	idx := bleve.NewIndexMapping()
 	idx.AddDocumentMapping("_default", doc)
 	return idx
@@ -262,15 +262,30 @@ func standardField() *mapping.FieldMapping {
 
 func postToBLV(post *model.Post, teamID string) *blvPost {
 	return &blvPost{
-		ID:        post.Id,
-		TeamID:    teamID,
-		ChannelID: post.ChannelId,
-		UserID:    post.UserId,
-		CreateAt:  post.CreateAt,
-		Message:   post.Message,
-		Type:      post.Type,
-		Hashtags:  strings.Fields(post.Hashtags),
+		ID:            post.Id,
+		TeamID:        teamID,
+		ChannelID:     post.ChannelId,
+		UserID:        post.UserId,
+		CreateAt:      post.CreateAt,
+		Message:       post.Message,
+		Type:          post.Type,
+		HashtagTokens: normalizeHashtags(post.Hashtags),
 	}
+}
+
+func normalizeHashtags(input string) []string {
+	fields := strings.Fields(input)
+	tokens := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if token := normalizeHashtag(field); token != "" {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}
+
+func normalizeHashtag(input string) string {
+	return strings.ToLower(strings.TrimSpace(input))
 }
 
 func fileToBLV(file *model.FileInfo) *blvFile {

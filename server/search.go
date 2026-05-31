@@ -182,10 +182,7 @@ func (p *Plugin) prepareSearch(userID, teamID string, params model.SearchParamet
 	if err != nil {
 		return nil, nil, err
 	}
-	channelByName := map[string][]string{}
-	for _, channel := range channels {
-		channelByName[strings.ToLower(channel.Name)] = append(channelByName[strings.ToLower(channel.Name)], channel.Id)
-	}
+	channelResolver := newChannelResolver(channels)
 
 	paramsList := model.ParseSearchParams(terms, timeZoneOffset)
 	finalParams := make([]*model.SearchParams, 0, len(paramsList))
@@ -197,11 +194,11 @@ func (p *Plugin) prepareSearch(userID, teamID string, params model.SearchParamet
 		if sp.Terms == "*" {
 			continue
 		}
-		sp.InChannels = resolveChannelNames(channelByName, sp.InChannels)
+		sp.InChannels = p.resolveChannels(userID, channelResolver, sp.InChannels)
 		if hadInChannels && len(sp.InChannels) == 0 {
 			return model.ChannelList{}, []*model.SearchParams{}, nil
 		}
-		sp.ExcludedChannels = resolveChannelNames(channelByName, sp.ExcludedChannels)
+		sp.ExcludedChannels = p.resolveChannels(userID, channelResolver, sp.ExcludedChannels)
 		sp.FromUsers = p.resolveUserNames(sp.FromUsers)
 		if hadFromUsers && len(sp.FromUsers) == 0 {
 			return model.ChannelList{}, []*model.SearchParams{}, nil
@@ -270,15 +267,95 @@ func (p *Plugin) accessibleChannels(userID, teamID string, includeDeleted bool) 
 	return channels, nil
 }
 
-func resolveChannelNames(channelByName map[string][]string, names []string) []string {
-	if len(names) == 0 {
+type channelResolver struct {
+	ids      map[string]bool
+	byLookup map[string][]string
+}
+
+func newChannelResolver(channels model.ChannelList) *channelResolver {
+	resolver := &channelResolver{
+		ids:      map[string]bool{},
+		byLookup: map[string][]string{},
+	}
+	for _, channel := range channels {
+		resolver.ids[channel.Id] = true
+		resolver.add(channel.Id, channel.Id)
+		resolver.add(channel.Name, channel.Id)
+		resolver.add(channel.DisplayName, channel.Id)
+	}
+	return resolver
+}
+
+func (r *channelResolver) add(value, channelID string) {
+	value = normalizeSearchModifierValue(value)
+	if value == "" {
+		return
+	}
+	r.byLookup[value] = appendUniqueString(r.byLookup[value], channelID)
+}
+
+func (p *Plugin) resolveChannels(currentUserID string, resolver *channelResolver, values []string) []string {
+	if len(values) == 0 {
 		return nil
 	}
 	var ids []string
-	for _, name := range names {
-		ids = append(ids, channelByName[strings.ToLower(name)]...)
+	for _, value := range values {
+		resolved := resolver.resolve(value)
+		if len(resolved) == 0 {
+			resolved = p.resolveDirectChannel(currentUserID, resolver, value)
+		}
+		ids = appendUniqueStrings(ids, resolved...)
 	}
 	return ids
+}
+
+func (r *channelResolver) resolve(value string) []string {
+	value = normalizeSearchModifierValue(value)
+	if value == "" {
+		return nil
+	}
+	return r.byLookup[value]
+}
+
+func (p *Plugin) resolveDirectChannel(currentUserID string, resolver *channelResolver, value string) []string {
+	value = strings.TrimPrefix(normalizeSearchModifierValue(value), "@")
+	if value == "" {
+		return nil
+	}
+	user, appErr := p.API.GetUserByUsername(value)
+	if appErr != nil {
+		return nil
+	}
+	dmName := normalizeSearchModifierValue(model.GetDMNameFromIds(currentUserID, user.Id))
+	for _, channelID := range resolver.byLookup[dmName] {
+		if resolver.ids[channelID] {
+			return []string{channelID}
+		}
+	}
+	return nil
+}
+
+func normalizeSearchModifierValue(value string) string {
+	return strings.ToLower(strings.Trim(strings.TrimSpace(value), `"`))
+}
+
+func appendUniqueStrings(values []string, additions ...string) []string {
+	for _, addition := range additions {
+		values = appendUniqueString(values, addition)
+	}
+	return values
+}
+
+func appendUniqueString(values []string, addition string) []string {
+	if addition == "" {
+		return values
+	}
+	for _, value := range values {
+		if value == addition {
+			return values
+		}
+	}
+	return append(values, addition)
 }
 
 func (p *Plugin) resolveUserNames(names []string) []string {

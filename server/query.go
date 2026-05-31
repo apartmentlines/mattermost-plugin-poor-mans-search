@@ -31,15 +31,10 @@ func buildPostQuery(channels model.ChannelList, searchParams []*model.SearchPara
 
 		if params.IsHashtag {
 			if params.Terms != "" {
-				hashtagQ := bleve.NewMatchQuery(params.Terms)
-				hashtagQ.SetField("Hashtags")
-				hashtagQ.SetOperator(termOperator)
-				termQueries = append(termQueries, hashtagQ)
-			} else if params.ExcludedTerms != "" {
-				hashtagQ := bleve.NewMatchQuery(params.ExcludedTerms)
-				hashtagQ.SetField("Hashtags")
-				hashtagQ.SetOperator(termOperator)
-				notTermQueries = append(notTermQueries, hashtagQ)
+				termQueries = append(termQueries, hashtagQueries(params.Terms)...)
+			}
+			if params.ExcludedTerms != "" {
+				notTermQueries = append(notTermQueries, hashtagQueries(params.ExcludedTerms)...)
 			}
 			continue
 		}
@@ -88,6 +83,21 @@ func buildFileQuery(channels model.ChannelList, searchParams []*model.SearchPara
 	}
 
 	return finishQuery(channels, searchParams[0].OrTerms, termQueries, notTermQueries, filters, notFilters)
+}
+
+func hashtagQueries(input string) []query.Query {
+	terms := strings.Fields(input)
+	queries := make([]query.Query, 0, len(terms))
+	for _, term := range terms {
+		token := normalizeHashtag(term)
+		if token == "" {
+			continue
+		}
+		q := bleve.NewTermQuery(token)
+		q.SetField("HashtagTokens")
+		queries = append(queries, q)
+	}
+	return queries
 }
 
 type parsedSearchTerm struct {
