@@ -1,7 +1,7 @@
 # Poor Man's Search
 
 ![Build Status](https://github.com/apartmentlines/mattermost-plugin-poor-mans-search/actions/workflows/ci.yml/badge.svg)
-[![CodeQL](https://github.com/apartmentlines/mattermost-plugin-poor-mans-search/actions/workflows/codeql.yml/badge.svg)](https://github.com/apartmentlines/mattermost-plugin-poor-mans-search/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/apartmentlines/mattermost-plugin-poor-mans-search/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/apartmentlines/mattermost-plugin-poor-mans-search/actions/workflows/github-code-scanning/codeql)
 
 <div align="center">
   <img src="logo.png" alt="Poor Man's Scheduled Messages logo">
