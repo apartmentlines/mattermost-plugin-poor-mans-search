@@ -28,17 +28,19 @@ make bundle
 
 4. Set a custom `Index directory` if needed, default is `[mattermost_working_directory]/data/poor-mans-search/bleve`
 
-4. Leave `/search command result display` set to `Inline results`.
+5. Leave `/search command result display` set to `Inline results`.
 
-5. Click **Index Now** and wait for the rebuild to finish.
+6. Click **Index Now** and wait for the rebuild to finish. This initial rebuild is required before Poor Man's Search can find existing messages and files.
 
-6. Search using the `/search` slash command from any channel:
+7. Search using the `/search` slash command from any channel:
 
 ```text
 /search your search terms
 ```
 
 Inline mode rewrites `/search` slash commands to use Bleve, returning an ephemeral message in the current channel which uses standard Mattermost links for posts, channels, and files.
+
+After the initial rebuild, new posts and file attachments are indexed automatically. You normally only need to run **Index Now** again after purging the index, changing index storage, restoring old data, or if you suspect the Bleve index is out of sync with Mattermost.
 
 ## Search Box
 

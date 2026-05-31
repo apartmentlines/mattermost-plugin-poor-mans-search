@@ -52,14 +52,18 @@ Search results are filtered through Mattermost plugin APIs before being returned
 
 ## Rebuilds
 
-Live indexing uses Mattermost hooks and public plugin APIs. Full rebuilds are narrower by design:
+The plugin has two indexing paths. Live indexing uses Mattermost hooks and public plugin APIs to index new posts and file attachments after the plugin is installed. Full rebuilds backfill historical data from the Mattermost database into the plugin-owned Bleve indexes.
+
+An initial rebuild is required before existing Mattermost messages and files are searchable through Poor Man's Search. Without it, only content created after the plugin starts can be indexed automatically.
+
+Full rebuilds are narrower by design:
 
 - PostgreSQL only.
 - Mattermost server version is used to select a known schema adapter.
 - Unsupported server versions or database drivers fail before the rebuild starts.
 
-Rebuilds can run while search is available, but results may be incomplete until the rebuild finishes.
+Rebuilds can run while search is available, but results may be incomplete until the rebuild finishes. Rebuilds are admin-triggered backfill and repair operations, not a periodic sync loop.
 
 ## Purging
 
-Purging removes plugin-owned Bleve index contents and clears rebuild history. Search results remain incomplete until a rebuild has repopulated the indexes.
+Purging removes plugin-owned Bleve index contents and clears rebuild history. Search results remain incomplete until another rebuild has repopulated the indexes.
