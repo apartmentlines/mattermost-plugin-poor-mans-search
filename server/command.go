@@ -152,7 +152,7 @@ func (p *Plugin) fileResultsSection(list *model.FileInfoList, terms string) (str
 		}
 		count++
 		channelText, _ := p.channelResultText(file.ChannelId)
-		fmt.Fprintf(&b, "- `%s` in %s\n", file.Name, channelText)
+		fmt.Fprintf(&b, "- [`%s`](/api/v4/files/%s) in %s\n", file.Name, file.Id, channelText)
 	}
 	if count == 0 {
 		return "", false

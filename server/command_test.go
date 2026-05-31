@@ -115,8 +115,8 @@ func TestFormatCombinedResultsIncludesPostsAndFiles(t *testing.T) {
 	if !strings.Contains(got, "[Post](/example/pl/"+post.Id+"?view=citation)") {
 		t.Fatalf("expected post link, got %q", got)
 	}
-	if !strings.Contains(got, "`packet.pdf` in [~Town Square](/example/channels/town-square)") {
-		t.Fatalf("expected linked file channel, got %q", got)
+	if !strings.Contains(got, "[`packet.pdf`](/api/v4/files/"+file.Id+") in [~Town Square](/example/channels/town-square)") {
+		t.Fatalf("expected linked file and channel, got %q", got)
 	}
 	api.AssertExpectations(t)
 }
