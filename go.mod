@@ -3,6 +3,7 @@ module github.com/apartmentlines/mattermost-plugin-poor-mans-search
 go 1.25.0
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/blang/semver/v4 v4.0.0
 	github.com/blevesearch/bleve/v2 v2.6.0
 	github.com/gorilla/mux v1.8.1

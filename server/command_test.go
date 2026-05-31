@@ -164,6 +164,55 @@ func TestExecuteFindWithoutArgumentsGuidesToSearch(t *testing.T) {
 	}
 }
 
+func TestExecuteFindSearchesPostsAndFiles(t *testing.T) {
+	engine := newTestSearchEngine(t)
+	userID := model.NewId()
+	team := &model.Team{Id: model.NewId(), Name: "example"}
+	channel := &model.Channel{Id: model.NewId(), TeamId: team.Id, Name: "town-square", DisplayName: "Town Square"}
+	post := &model.Post{Id: model.NewId(), ChannelId: channel.Id, UserId: userID, CreateAt: 200, Message: "lease packet post"}
+	file := &model.FileInfo{Id: model.NewId(), PostId: post.Id, ChannelId: channel.Id, CreatorId: userID, CreateAt: 100, Name: "lease-packet.pdf", Content: "lease packet file"}
+	if err := engine.IndexPost(post, team.Id); err != nil {
+		t.Fatalf("index post: %v", err)
+	}
+	if err := engine.IndexFile(file); err != nil {
+		t.Fatalf("index file: %v", err)
+	}
+
+	api := &plugintest.API{}
+	api.On("HasPermissionToTeam", userID, team.Id, model.PermissionViewTeam).Return(true).Twice()
+	api.On("GetTeam", team.Id).Return(team, nil).Times(4)
+	api.On("GetChannelsForTeamForUser", team.Id, userID, false).Return([]*model.Channel{channel}, nil).Twice()
+	api.On("GetPost", post.Id).Return(post, nil).Once()
+	api.On("GetFileInfo", file.Id).Return(file, nil).Once()
+	api.On("GetChannel", channel.Id).Return(channel, nil).Twice()
+	api.On("HasPermissionToChannel", userID, channel.Id, model.PermissionReadChannel).Return(true).Twice()
+	plugin := &Plugin{engine: engine}
+	plugin.API = api
+
+	resp, appErr := plugin.ExecuteCommand(nil, &model.CommandArgs{
+		Command: "/find lease packet",
+		UserId:  userID,
+		TeamId:  team.Id,
+	})
+	if appErr != nil {
+		t.Fatalf("execute find: %v", appErr)
+	}
+	if resp.ResponseType != model.CommandResponseTypeEphemeral {
+		t.Fatalf("expected ephemeral response, got %q", resp.ResponseType)
+	}
+	for _, want := range []string{
+		"##### Posts for `lease packet`",
+		"##### Files for `lease packet`",
+		"[Post](/example/pl/" + post.Id + "?view=citation)",
+		"[`lease-packet.pdf`](/api/v4/files/" + file.Id + ") in [~Town Square](/example/channels/town-square)",
+	} {
+		if !strings.Contains(resp.Text, want) {
+			t.Fatalf("expected response to contain %q, got %q", want, resp.Text)
+		}
+	}
+	api.AssertExpectations(t)
+}
+
 func TestPostResultExcerptTruncatesUTF8Safely(t *testing.T) {
 	post := &model.Post{Id: model.NewId(), Message: strings.Repeat("世", 200)}
 	got := postResultExcerpt(post, nil)

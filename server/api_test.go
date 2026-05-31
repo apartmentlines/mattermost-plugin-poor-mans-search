@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin/plugintest"
@@ -171,6 +173,197 @@ func TestPostSearchAPIHasNextAfterSkippingStaleHit(t *testing.T) {
 	api.AssertExpectations(t)
 }
 
+func TestAdminAPIRequiresManageSystemPermission(t *testing.T) {
+	userID := model.NewId()
+	for name, request := range map[string]*http.Request{
+		"rebuild": httptest.NewRequest(http.MethodPost, "/api/v1/index/rebuild", nil),
+		"purge":   httptest.NewRequest(http.MethodPost, "/api/v1/index/purge", nil),
+		"status":  httptest.NewRequest(http.MethodGet, "/api/v1/index/status", nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := &plugintest.API{}
+			api.On("HasPermissionTo", userID, model.PermissionManageSystem).Return(false).Once()
+			plugin := &Plugin{engine: newSearchEngine(&configuration{}), indexer: &indexer{}}
+			plugin.API = api
+			request.Header.Set(mattermostUserIDHeader, userID)
+			rec := httptest.NewRecorder()
+
+			plugin.ServeHTTP(nil, rec, request)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("expected 403, got %d", rec.Code)
+			}
+			api.AssertExpectations(t)
+		})
+	}
+}
+
+func TestRebuildIndexAPIStartsRebuild(t *testing.T) {
+	userID := model.NewId()
+	api := &plugintest.API{}
+	allowErrorLogs(api)
+	allowWarnLogs(api)
+	api.On("HasPermissionTo", userID, model.PermissionManageSystem).Return(true).Once()
+	api.On("KVGet", indexHistoryKey).Return(nil, nil).Maybe()
+	api.On("KVSet", indexHistoryKey, mock.Anything).Return(nil).Maybe()
+	plugin := &Plugin{
+		configuration: &configuration{IndexDir: "unused", BatchSize: 1, SearchResultDisplay: searchResultDisplayInline},
+		engine:        newSearchEngine(&configuration{}),
+		indexer:       &indexer{},
+	}
+	plugin.indexer.p = plugin
+	plugin.API = api
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/index/rebuild", nil)
+	req.Header.Set(mattermostUserIDHeader, userID)
+	rec := httptest.NewRecorder()
+	plugin.ServeHTTP(nil, rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "started") {
+		t.Fatalf("expected started response, got %s", rec.Body.String())
+	}
+	waitForIndexer(t, plugin.indexer)
+	api.AssertExpectations(t)
+}
+
+func TestRebuildIndexAPIRejectsRunningRebuild(t *testing.T) {
+	userID := model.NewId()
+	api := &plugintest.API{}
+	api.On("HasPermissionTo", userID, model.PermissionManageSystem).Return(true).Once()
+	plugin := &Plugin{
+		configuration: &configuration{IndexDir: "unused", BatchSize: 1, SearchResultDisplay: searchResultDisplayInline},
+		engine:        newSearchEngine(&configuration{}),
+		indexer:       &indexer{status: indexStatus{Running: true}},
+	}
+	plugin.API = api
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/index/rebuild", nil)
+	req.Header.Set(mattermostUserIDHeader, userID)
+	rec := httptest.NewRecorder()
+	plugin.ServeHTTP(nil, rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", rec.Code)
+	}
+	api.AssertExpectations(t)
+}
+
+func TestPurgeIndexAPIClearsIndexesHistoryAndStatus(t *testing.T) {
+	engine := newTestSearchEngine(t)
+	channel := testChannel()
+	post := testPost(channel, "purge needle", 100)
+	if err := engine.IndexPost(post, channel.TeamId); err != nil {
+		t.Fatalf("seed post: %v", err)
+	}
+	userID := model.NewId()
+	api := &plugintest.API{}
+	allowInfoLogs(api)
+	api.On("HasPermissionTo", userID, model.PermissionManageSystem).Return(true).Once()
+	api.On("KVDelete", indexHistoryKey).Return(nil).Once()
+	plugin := &Plugin{engine: engine, indexer: &indexer{status: indexStatus{Running: false, PostsIndexed: 1}}}
+	plugin.indexer.p = plugin
+	plugin.API = api
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/index/purge", nil)
+	req.Header.Set(mattermostUserIDHeader, userID)
+	rec := httptest.NewRecorder()
+	plugin.ServeHTTP(nil, rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertPostHits(t, engine, model.ChannelList{channel}, "needle")
+	if status := plugin.indexer.Status(); status.PostsIndexed != 0 || status.Running {
+		t.Fatalf("expected reset status, got %#v", status)
+	}
+	api.AssertExpectations(t)
+}
+
+func TestPurgeIndexAPIRejectsRunningRebuild(t *testing.T) {
+	userID := model.NewId()
+	api := &plugintest.API{}
+	api.On("HasPermissionTo", userID, model.PermissionManageSystem).Return(true).Once()
+	plugin := &Plugin{engine: newSearchEngine(&configuration{}), indexer: &indexer{status: indexStatus{Running: true}}}
+	plugin.API = api
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/index/purge", nil)
+	req.Header.Set(mattermostUserIDHeader, userID)
+	rec := httptest.NewRecorder()
+	plugin.ServeHTTP(nil, rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", rec.Code)
+	}
+	api.AssertExpectations(t)
+}
+
+func TestIndexStatusAndClientConfigAPIResponses(t *testing.T) {
+	userID := model.NewId()
+	api := &plugintest.API{}
+	api.On("HasPermissionTo", userID, model.PermissionManageSystem).Return(true).Once()
+	api.On("KVGet", indexHistoryKey).Return(mustJSON(t, []indexHistoryEntry{{ID: "run1", Status: "success"}}), nil).Once()
+	plugin := &Plugin{
+		configuration: &configuration{IndexDir: "data/test", BatchSize: 1, SearchResultDisplay: searchResultDisplaySidebar},
+		engine:        newSearchEngine(&configuration{}),
+		indexer:       &indexer{},
+	}
+	plugin.indexer.p = plugin
+	plugin.API = api
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/index/status", nil)
+	req.Header.Set(mattermostUserIDHeader, userID)
+	rec := httptest.NewRecorder()
+	plugin.ServeHTTP(nil, rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	for _, key := range []string{"engine", "rebuild", "history"} {
+		if !strings.Contains(rec.Body.String(), key) {
+			t.Fatalf("expected status response to include %q, got %s", key, rec.Body.String())
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/config/client", nil)
+	req.Header.Set(mattermostUserIDHeader, userID)
+	rec = httptest.NewRecorder()
+	plugin.ServeHTTP(nil, rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), searchResultDisplaySidebar) {
+		t.Fatalf("expected sidebar config, got %s", rec.Body.String())
+	}
+	api.AssertExpectations(t)
+}
+
+func waitForIndexer(t *testing.T, idx *indexer) {
+	t.Helper()
+
+	idx.mut.Lock()
+	done := idx.done
+	running := idx.status.Running
+	idx.mut.Unlock()
+	if !running {
+		return
+	}
+	if done == nil {
+		t.Fatal("indexer is running without a done channel")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for indexer")
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return data
+}
+
 func allowDebugLogs(api *plugintest.API) {
 	for _, count := range []int{11, 13, 19} {
 		args := make([]any, count)
@@ -182,11 +375,31 @@ func allowDebugLogs(api *plugintest.API) {
 }
 
 func allowWarnLogs(api *plugintest.API) {
-	for _, count := range []int{5} {
+	for _, count := range []int{5, 7} {
 		args := make([]any, count)
 		for i := range args {
 			args[i] = mock.Anything
 		}
 		api.On("LogWarn", args...).Return().Maybe()
+	}
+}
+
+func allowInfoLogs(api *plugintest.API) {
+	for _, count := range []int{1, 5, 7} {
+		args := make([]any, count)
+		for i := range args {
+			args[i] = mock.Anything
+		}
+		api.On("LogInfo", args...).Return().Maybe()
+	}
+}
+
+func allowErrorLogs(api *plugintest.API) {
+	for _, count := range []int{3} {
+		args := make([]any, count)
+		for i := range args {
+			args[i] = mock.Anything
+		}
+		api.On("LogError", args...).Return().Maybe()
 	}
 }
