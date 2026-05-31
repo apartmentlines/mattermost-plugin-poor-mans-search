@@ -87,17 +87,20 @@ install-go-tools:
 	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7.2
 	$(GO) install gotest.tools/gotestsum@v1.13.0
 
+## Ensures golangci-lint is installed
+.PHONY: ensure-golangci-lint
+ensure-golangci-lint:
+	@if [ ! -x "$(GOBIN)/golangci-lint" ]; then \
+		$(MAKE) --no-print-directory install-go-tools; \
+	fi
+
 ## Runs eslint and golangci-lint
 .PHONY: check-style
-check-style: manifest-check
+check-style: manifest-check ensure-golangci-lint
 	$(GO) vet ./...
 	@unformatted="$$(find . \( -path './.git' -o -path './.cache' -o -path './dist' -o -path './server/dist' \) -prune -o -name '*.go' -print | xargs gofmt -l)"; \
 		test -z "$$unformatted" || (echo "Go files need formatting; run make format"; echo "$$unformatted"; exit 1)
-	@if [ -x "$(GOBIN)/golangci-lint" ]; then \
-		$(GOBIN)/golangci-lint run ./...; \
-	else \
-		echo "Skipping golangci-lint; run make install-go-tools to install it."; \
-	fi
+	$(GOBIN)/golangci-lint run ./...
 
 ## Builds the server, if it exists, for all supported architectures, unless MM_SERVICESETTINGS_ENABLEDEVELOPER is set.
 .PHONY: server
