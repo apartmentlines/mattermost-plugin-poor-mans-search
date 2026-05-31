@@ -17,9 +17,9 @@ const (
 )
 
 type configuration struct {
-	IndexDir            string
-	BatchSize           int
-	SearchResultDisplay string
+	IndexDir            string `json:"indexdir"`
+	BatchSize           int    `json:"batchsize"`
+	SearchResultDisplay string `json:"searchresultdisplay"`
 }
 
 func (c *configuration) Clone() *configuration {

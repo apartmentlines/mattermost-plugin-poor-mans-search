@@ -4,7 +4,7 @@ Poor Man's Search has three plugin settings.
 
 ## Index Directory
 
-`IndexDir` is the filesystem directory where Bleve indexes are stored. The plugin creates this directory recursively when it initializes the search engine.
+`indexdir` is the filesystem directory where Bleve indexes are stored. The plugin creates this directory recursively when it initializes the search engine.
 
 Relative paths are resolved from the Mattermost working directory.
 
@@ -18,7 +18,7 @@ The directory contains separate post and file indexes.
 
 ## /search Command Result Display
 
-`SearchResultDisplay` controls how plugin-backed `/search` results are displayed.
+`searchresultdisplay` controls how plugin-backed `/search` results are displayed.
 
 - `inline`: `/search` slash commands are rewritten to the plugin-owned `/find` command. Results are shown as an ephemeral message in the current channel.
 - `sidebar`: Mattermost's search sidebar displays plugin-backed results. This requires reverse proxy rewrites from Mattermost's native search API endpoints to the plugin API endpoints, see [Sidebar Results](sidebar-results.md).
@@ -29,7 +29,7 @@ Mattermost's search box still uses native Mattermost search in inline mode.
 
 ## Index Admin
 
-`SearchAdmin` renders the plugin's System Console controls:
+`searchadmin` renders the plugin's System Console controls:
 
 - **Index Now** starts a full rebuild from the Mattermost database.
 - **Purge Index** removes plugin-owned Bleve indexes and clears rebuild history.
@@ -44,8 +44,8 @@ Plugin settings can also be configured in Mattermost's config file under `Plugin
   "PluginSettings": {
     "Plugins": {
       "com.mattermost.plugin-poor-mans-search": {
-        "IndexDir": "data/poor-mans-search/bleve",
-        "SearchResultDisplay": "inline"
+        "indexdir": "data/poor-mans-search/bleve",
+        "searchresultdisplay": "inline"
       }
     }
   }
@@ -59,8 +59,8 @@ For sidebar results:
   "PluginSettings": {
     "Plugins": {
       "com.mattermost.plugin-poor-mans-search": {
-        "IndexDir": "data/poor-mans-search/bleve",
-        "SearchResultDisplay": "sidebar"
+        "indexdir": "data/poor-mans-search/bleve",
+        "searchresultdisplay": "sidebar"
       }
     }
   }

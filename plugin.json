@@ -22,7 +22,7 @@
         "footer": "",
         "settings": [
             {
-                "key": "IndexDir",
+                "key": "indexdir",
                 "display_name": "Index directory",
                 "type": "text",
                 "help_text": "Filesystem directory where Bleve indexes will be stored.",
@@ -30,7 +30,7 @@
                 "placeholder": "data/poor-mans-search/bleve"
             },
             {
-                "key": "SearchResultDisplay",
+                "key": "searchresultdisplay",
                 "display_name": "/search command result display",
                 "type": "radio",
                 "help_text": "Inline results are displayed in the current channel as an ephemeral message. Sidebar results are displayed in Mattermost's search sidebar.",
@@ -47,7 +47,7 @@
                 ]
             },
             {
-                "key": "SearchAdmin",
+                "key": "searchadmin",
                 "display_name": "Index admin",
                 "type": "custom",
                 "help_text": "Start rebuilds, purge indexes, and inspect recent rebuild status."

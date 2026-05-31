@@ -13,7 +13,7 @@ Set `/search command result display` to `Sidebar results`, or configure:
   "PluginSettings": {
     "Plugins": {
       "com.mattermost.plugin-poor-mans-search": {
-        "SearchResultDisplay": "sidebar"
+        "searchresultdisplay": "sidebar"
       }
     }
   }

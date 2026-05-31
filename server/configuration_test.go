@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -17,6 +18,24 @@ func TestConfigurationDefaults(t *testing.T) {
 	}
 	if cfg.SearchResultDisplay != defaultSearchResultDisplay {
 		t.Fatalf("expected default search result display %q, got %q", defaultSearchResultDisplay, cfg.SearchResultDisplay)
+	}
+}
+
+func TestConfigurationUnmarshalsLowercasePluginKeys(t *testing.T) {
+	var cfg configuration
+	data := []byte(`{"indexdir":"/tmp/bleve","batchsize":25,"searchresultdisplay":"sidebar"}`)
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("unmarshal configuration: %v", err)
+	}
+
+	if cfg.IndexDir != "/tmp/bleve" {
+		t.Fatalf("expected index dir from lowercase key, got %q", cfg.IndexDir)
+	}
+	if cfg.BatchSize != 25 {
+		t.Fatalf("expected batch size from lowercase key, got %d", cfg.BatchSize)
+	}
+	if cfg.SearchResultDisplay != searchResultDisplaySidebar {
+		t.Fatalf("expected sidebar search display from lowercase key, got %q", cfg.SearchResultDisplay)
 	}
 }
 

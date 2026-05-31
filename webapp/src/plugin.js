@@ -311,7 +311,7 @@
             if (registry.registerSlashCommandWillBePostedHook) {
                 registry.registerSlashCommandWillBePostedHook(handleSlashCommandWillBePosted);
             }
-            registry.registerAdminConsoleCustomSetting('SearchAdmin', SearchAdminSetting, {showTitle: true});
+            registry.registerAdminConsoleCustomSetting('searchadmin', SearchAdminSetting, {showTitle: true});
         },
     });
 }());
