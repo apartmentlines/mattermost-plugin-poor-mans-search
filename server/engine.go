@@ -24,10 +24,10 @@ const (
 )
 
 type blvPost struct {
-	Id        string
-	TeamId    string
-	ChannelId string
-	UserId    string
+	ID        string
+	TeamID    string
+	ChannelID string
+	UserID    string
 	CreateAt  int64
 	Message   string
 	Type      string
@@ -35,10 +35,10 @@ type blvPost struct {
 }
 
 type blvFile struct {
-	Id        string
-	PostId    string
-	CreatorId string
-	ChannelId string
+	ID        string
+	PostID    string
+	CreatorID string
+	ChannelID string
 	CreateAt  int64
 	Name      string
 	Content   string
@@ -147,7 +147,7 @@ func (e *searchEngine) openLocked() error {
 	if e.Active() {
 		return nil
 	}
-	if err := os.MkdirAll(e.cfg.IndexDir, 0o755); err != nil {
+	if err := os.MkdirAll(e.cfg.IndexDir, 0o750); err != nil {
 		return err
 	}
 
@@ -220,10 +220,10 @@ func createOrOpenIndex(indexPath string, indexMapping *mapping.IndexMappingImpl)
 
 func postIndexMapping() *mapping.IndexMappingImpl {
 	doc := bleve.NewDocumentMapping()
-	doc.AddFieldMappingsAt("Id", keywordField())
-	doc.AddFieldMappingsAt("TeamId", keywordField())
-	doc.AddFieldMappingsAt("ChannelId", keywordField())
-	doc.AddFieldMappingsAt("UserId", keywordField())
+	doc.AddFieldMappingsAt("ID", keywordField())
+	doc.AddFieldMappingsAt("TeamID", keywordField())
+	doc.AddFieldMappingsAt("ChannelID", keywordField())
+	doc.AddFieldMappingsAt("UserID", keywordField())
 	doc.AddFieldMappingsAt("CreateAt", bleve.NewNumericFieldMapping())
 	doc.AddFieldMappingsAt("Message", standardField())
 	doc.AddFieldMappingsAt("Type", keywordField())
@@ -235,10 +235,10 @@ func postIndexMapping() *mapping.IndexMappingImpl {
 
 func fileIndexMapping() *mapping.IndexMappingImpl {
 	doc := bleve.NewDocumentMapping()
-	doc.AddFieldMappingsAt("Id", keywordField())
-	doc.AddFieldMappingsAt("PostId", keywordField())
-	doc.AddFieldMappingsAt("CreatorId", keywordField())
-	doc.AddFieldMappingsAt("ChannelId", keywordField())
+	doc.AddFieldMappingsAt("ID", keywordField())
+	doc.AddFieldMappingsAt("PostID", keywordField())
+	doc.AddFieldMappingsAt("CreatorID", keywordField())
+	doc.AddFieldMappingsAt("ChannelID", keywordField())
 	doc.AddFieldMappingsAt("CreateAt", bleve.NewNumericFieldMapping())
 	doc.AddFieldMappingsAt("Name", standardField())
 	doc.AddFieldMappingsAt("Content", standardField())
@@ -262,10 +262,10 @@ func standardField() *mapping.FieldMapping {
 
 func postToBLV(post *model.Post, teamID string) *blvPost {
 	return &blvPost{
-		Id:        post.Id,
-		TeamId:    teamID,
-		ChannelId: post.ChannelId,
-		UserId:    post.UserId,
+		ID:        post.Id,
+		TeamID:    teamID,
+		ChannelID: post.ChannelId,
+		UserID:    post.UserId,
 		CreateAt:  post.CreateAt,
 		Message:   post.Message,
 		Type:      post.Type,
@@ -275,10 +275,10 @@ func postToBLV(post *model.Post, teamID string) *blvPost {
 
 func fileToBLV(file *model.FileInfo) *blvFile {
 	return &blvFile{
-		Id:        file.Id,
-		PostId:    file.PostId,
-		ChannelId: file.ChannelId,
-		CreatorId: file.CreatorId,
+		ID:        file.Id,
+		PostID:    file.PostId,
+		ChannelID: file.ChannelId,
+		CreatorID: file.CreatorId,
 		CreateAt:  file.CreateAt,
 		Content:   file.Content,
 		Extension: file.Extension,
@@ -424,7 +424,7 @@ func channelQuery(channels model.ChannelList) query.Query {
 	queries := make([]query.Query, 0, len(channels))
 	for _, channel := range channels {
 		channelQ := bleve.NewTermQuery(channel.Id)
-		channelQ.SetField("ChannelId")
+		channelQ.SetField("ChannelID")
 		queries = append(queries, channelQ)
 	}
 	return bleve.NewDisjunctionQuery(queries...)

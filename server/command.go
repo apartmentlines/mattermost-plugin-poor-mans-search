@@ -87,26 +87,12 @@ func (p *Plugin) postResultsSection(list *model.PostList, matches model.PostSear
 			continue
 		}
 		count++
-		channel, appErr := p.API.GetChannel(post.ChannelId)
-		channelName := "unknown"
-		teamName := ""
-		channelLink := ""
-		if appErr == nil {
-			channelName = channelDisplayName(channel)
-			channelLink = channel.Name
-			if team, teamErr := p.API.GetTeam(channel.TeamId); teamErr == nil {
-				teamName = team.Name
-			}
-		}
+		channelText, teamName := p.channelResultText(post.ChannelId)
 		excerpt := postResultExcerpt(post, matches)
 		if teamName != "" {
-			channelText := channelName
-			if channelLink != "" {
-				channelText = fmt.Sprintf("[~%s](/%s/channels/%s)", channelName, teamName, channelLink)
-			}
-			fmt.Fprintf(&b, "- [Post](%s) in %s: %s\n", fmt.Sprintf("/%s/pl/%s", teamName, post.Id), channelText, excerpt)
+			fmt.Fprintf(&b, "- [Post](%s) in %s: %s\n", fmt.Sprintf("/%s/pl/%s?view=citation", teamName, post.Id), channelText, excerpt)
 		} else {
-			fmt.Fprintf(&b, "- Post in ~%s: %s\n", channelName, excerpt)
+			fmt.Fprintf(&b, "- Post in %s: %s\n", channelText, excerpt)
 		}
 	}
 	if count == 0 {
@@ -152,14 +138,6 @@ func boldMatchedTerms(text string, terms []string) string {
 	return output
 }
 
-func (p *Plugin) formatFileResults(list *model.FileInfoList, terms string) string {
-	section, ok := p.fileResultsSection(list, terms)
-	if !ok {
-		return fmt.Sprintf("No file results for `%s`.", terms)
-	}
-	return section
-}
-
 func (p *Plugin) fileResultsSection(list *model.FileInfoList, terms string) (string, bool) {
 	if list == nil || len(list.Order) == 0 {
 		return "", false
@@ -173,16 +151,32 @@ func (p *Plugin) fileResultsSection(list *model.FileInfoList, terms string) (str
 			continue
 		}
 		count++
-		channelName := "unknown"
-		if channel, appErr := p.API.GetChannel(file.ChannelId); appErr == nil {
-			channelName = channelDisplayName(channel)
-		}
-		fmt.Fprintf(&b, "- `%s` in ~%s\n", file.Name, channelName)
+		channelText, _ := p.channelResultText(file.ChannelId)
+		fmt.Fprintf(&b, "- `%s` in %s\n", file.Name, channelText)
 	}
 	if count == 0 {
 		return "", false
 	}
 	return b.String(), true
+}
+
+func (p *Plugin) channelResultText(channelID string) (string, string) {
+	channel, appErr := p.API.GetChannel(channelID)
+	if appErr != nil || channel == nil {
+		return "~unknown", ""
+	}
+
+	channelName := channelDisplayName(channel)
+	if channel.TeamId == "" || channel.Name == "" {
+		return fmt.Sprintf("~%s", channelName), ""
+	}
+
+	team, teamErr := p.API.GetTeam(channel.TeamId)
+	if teamErr != nil || team == nil || team.Name == "" {
+		return fmt.Sprintf("~%s", channelName), ""
+	}
+
+	return fmt.Sprintf("[~%s](/%s/channels/%s)", channelName, team.Name, channel.Name), team.Name
 }
 
 func channelDisplayName(channel *model.Channel) string {

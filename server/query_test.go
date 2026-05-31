@@ -23,7 +23,7 @@ func TestParseSearchTermsPreservesPhrasesAndWildcards(t *testing.T) {
 func TestResolveChannelNames(t *testing.T) {
 	channelID := model.NewId()
 	channelByName := map[string][]string{
-		"town-square": []string{channelID},
+		"town-square": {channelID},
 	}
 
 	if got := resolveChannelNames(channelByName, []string{"Town-Square"}); !reflect.DeepEqual(got, []string{channelID}) {

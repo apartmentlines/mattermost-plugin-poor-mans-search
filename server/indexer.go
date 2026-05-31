@@ -97,7 +97,7 @@ func (i *indexer) rebuild(ctx context.Context, cfg *configuration) {
 	}()
 
 	err := i.runRebuild(ctx, cfg)
-	engineStatus := i.p.engine.Status()
+	currentEngineStatus := i.p.engine.Status()
 	i.mut.Lock()
 	i.status.Running = false
 	i.status.CompletedAt = model.GetMillis()
@@ -109,7 +109,7 @@ func (i *indexer) rebuild(ctx context.Context, cfg *configuration) {
 		i.status.LastError = ""
 		i.p.API.LogInfo("Search index rebuild completed", "posts_indexed", i.status.PostsIndexed, "files_indexed", i.status.FilesIndexed)
 	}
-	entry := historyEntryFromStatus(i.status, engineStatus)
+	entry := historyEntryFromStatus(i.status, currentEngineStatus)
 	i.mut.Unlock()
 
 	if saveErr := i.prependHistory(entry); saveErr != nil {

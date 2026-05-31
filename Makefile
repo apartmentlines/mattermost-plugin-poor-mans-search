@@ -12,6 +12,7 @@ DEFAULT_GOARCH := $(shell $(GO) env GOARCH)
 export GOCACHE := $(PWD)/.cache/go-build
 export GOPATH := $(PWD)/.cache/gopath
 export GOBIN ?= $(PWD)/build/bin
+export GOLANGCI_LINT_CACHE := $(PWD)/.cache/golangci-lint
 export GO111MODULE=on
 
 ifneq ($(MM_DEBUG),)

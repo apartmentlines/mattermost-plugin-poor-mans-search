@@ -49,7 +49,7 @@ func TestFormatPostResultsUsesDisplayNameAndURLName(t *testing.T) {
 	if !strings.Contains(got, "[~Town Square](/example/channels/town-square)") {
 		t.Fatalf("expected display name and URL name in channel link, got %q", got)
 	}
-	if !strings.Contains(got, "[Post](/example/pl/"+post.Id+")") {
+	if !strings.Contains(got, "[Post](/example/pl/"+post.Id+"?view=citation)") {
 		t.Fatalf("expected post permalink, got %q", got)
 	}
 	api.AssertExpectations(t)
@@ -101,7 +101,7 @@ func TestFormatCombinedResultsIncludesPostsAndFiles(t *testing.T) {
 
 	api := &plugintest.API{}
 	api.On("GetChannel", channel.Id).Return(channel, nil).Twice()
-	api.On("GetTeam", team.Id).Return(team, nil).Once()
+	api.On("GetTeam", team.Id).Return(team, nil).Twice()
 	plugin := &Plugin{}
 	plugin.API = api
 
@@ -112,11 +112,11 @@ func TestFormatCombinedResultsIncludesPostsAndFiles(t *testing.T) {
 	if !strings.Contains(got, "##### Files for `hello`") {
 		t.Fatalf("expected files section, got %q", got)
 	}
-	if !strings.Contains(got, "[Post](/example/pl/"+post.Id+")") {
+	if !strings.Contains(got, "[Post](/example/pl/"+post.Id+"?view=citation)") {
 		t.Fatalf("expected post link, got %q", got)
 	}
-	if !strings.Contains(got, "`packet.pdf` in ~Town Square") {
-		t.Fatalf("expected file result, got %q", got)
+	if !strings.Contains(got, "`packet.pdf` in [~Town Square](/example/channels/town-square)") {
+		t.Fatalf("expected linked file channel, got %q", got)
 	}
 	api.AssertExpectations(t)
 }

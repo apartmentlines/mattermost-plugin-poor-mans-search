@@ -54,14 +54,14 @@ func TestPostSearchAPIResponseShape(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &results); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if len(results.PostList.Order) != 1 || results.PostList.Order[0] != post.Id {
-		t.Fatalf("expected post order with %s, got %#v", post.Id, results.PostList.Order)
+	if len(results.Order) != 1 || results.Order[0] != post.Id {
+		t.Fatalf("expected post order with %s, got %#v", post.Id, results.Order)
 	}
 	if got := results.Matches[post.Id]; len(got) != 1 || got[0] != "needle" {
 		t.Fatalf("expected term matches, got %#v", results.Matches)
 	}
-	if results.PostList.HasNext == nil || *results.PostList.HasNext {
-		t.Fatalf("expected has_next false, got %#v", results.PostList.HasNext)
+	if results.HasNext == nil || *results.HasNext {
+		t.Fatalf("expected has_next false, got %#v", results.HasNext)
 	}
 	api.AssertExpectations(t)
 }
@@ -162,11 +162,11 @@ func TestPostSearchAPIHasNextAfterSkippingStaleHit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run post search: %v", err)
 	}
-	if len(results.PostList.Order) != 1 || results.PostList.Order[0] != visible.Id {
-		t.Fatalf("expected visible post only, got %#v", results.PostList.Order)
+	if len(results.Order) != 1 || results.Order[0] != visible.Id {
+		t.Fatalf("expected visible post only, got %#v", results.Order)
 	}
-	if results.PostList.HasNext == nil || *results.PostList.HasNext {
-		t.Fatalf("expected has_next false after stale hit is skipped, got %#v", results.PostList.HasNext)
+	if results.HasNext == nil || *results.HasNext {
+		t.Fatalf("expected has_next false after stale hit is skipped, got %#v", results.HasNext)
 	}
 	api.AssertExpectations(t)
 }

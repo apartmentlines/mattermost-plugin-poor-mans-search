@@ -1,3 +1,4 @@
+// Package main implements the Poor Man's Search Mattermost plugin.
 package main
 
 import (
@@ -54,7 +55,7 @@ func (p *Plugin) handlePostSearch(w http.ResponseWriter, r *http.Request) {
 		p.writeSearchError(w, err)
 		return
 	}
-	p.API.LogDebug("Post search API request completed", "path", r.URL.Path, "user_id", userID, "team_id", teamID, "results", len(results.PostList.Posts), "has_next", model.SafeDereference(results.PostList.HasNext), "elapsed_ms", time.Since(start).Milliseconds())
+	p.API.LogDebug("Post search API request completed", "path", r.URL.Path, "user_id", userID, "team_id", teamID, "results", len(results.Posts), "has_next", model.SafeDereference(results.HasNext), "elapsed_ms", time.Since(start).Milliseconds())
 	writeJSON(w, results)
 }
 

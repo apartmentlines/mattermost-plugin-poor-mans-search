@@ -26,7 +26,7 @@ func buildPostQuery(channels model.ChannelList, searchParams []*model.SearchPara
 		}
 
 		if i == 0 {
-			addSharedFilters(params, "UserId", &filters, &notFilters)
+			addSharedFilters(params, "UserID", &filters, &notFilters)
 		}
 
 		if params.IsHashtag {
@@ -69,7 +69,7 @@ func buildFileQuery(channels model.ChannelList, searchParams []*model.SearchPara
 		}
 
 		if i == 0 {
-			addSharedFilters(params, "CreatorId", &filters, &notFilters)
+			addSharedFilters(params, "CreatorID", &filters, &notFilters)
 			if len(params.Extensions) > 0 {
 				filters = append(filters, termsDisjunction("Extension", params.Extensions))
 			}
@@ -195,10 +195,10 @@ func cloneTextQueryForField(q query.Query, field string) query.Query {
 
 func addSharedFilters(params *model.SearchParams, userField string, filters, notFilters *[]query.Query) {
 	if len(params.InChannels) > 0 {
-		*filters = append(*filters, termsDisjunction("ChannelId", params.InChannels))
+		*filters = append(*filters, termsDisjunction("ChannelID", params.InChannels))
 	}
 	if len(params.ExcludedChannels) > 0 {
-		*notFilters = append(*notFilters, termsDisjunction("ChannelId", params.ExcludedChannels))
+		*notFilters = append(*notFilters, termsDisjunction("ChannelID", params.ExcludedChannels))
 	}
 	if len(params.FromUsers) > 0 {
 		*filters = append(*filters, termsDisjunction(userField, params.FromUsers))
@@ -215,16 +215,16 @@ func addSharedFilters(params *model.SearchParams, userField string, filters, not
 		*filters = append(*filters, dateQ)
 	} else {
 		if params.AfterDate != "" || params.BeforeDate != "" {
-			var min, max *float64
+			var lowerBound, upperBound *float64
 			if params.AfterDate != "" {
 				v := float64(params.GetAfterDateMillis())
-				min = &v
+				lowerBound = &v
 			}
 			if params.BeforeDate != "" {
 				v := float64(params.GetBeforeDateMillis())
-				max = &v
+				upperBound = &v
 			}
-			dateQ := bleve.NewNumericRangeQuery(min, max)
+			dateQ := bleve.NewNumericRangeQuery(lowerBound, upperBound)
 			dateQ.SetField("CreateAt")
 			*filters = append(*filters, dateQ)
 		}

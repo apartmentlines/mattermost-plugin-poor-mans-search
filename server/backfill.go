@@ -85,7 +85,9 @@ func (postgresSchemaV11) FetchPostBatch(ctx context.Context, db *sql.DB, cursor 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var batch []postBackfillRow
 	for rows.Next() {
@@ -112,7 +114,9 @@ func (postgresSchemaV11) FetchFileBatch(ctx context.Context, db *sql.DB, cursor 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var batch []*model.FileInfo
 	for rows.Next() {

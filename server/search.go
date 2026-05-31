@@ -9,13 +9,6 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
-type searchKind int
-
-const (
-	searchPosts searchKind = iota
-	searchFiles
-)
-
 func (p *Plugin) runPostSearch(userID, teamID string, params model.SearchParameter) (*model.PostSearchResults, error) {
 	page, perPage := searchPage(params, 60)
 	channels, finalParams, err := p.prepareSearch(userID, teamID, params)
