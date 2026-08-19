@@ -1,4 +1,5 @@
 GO ?= go
+GO_VERSION := $(shell $(GO) list -m -f '{{.GoVersion}}')
 GOIMPORTS ?= $(shell command -v goimports 2> /dev/null)
 GOPATH ?= $(shell $(GO) env GOPATH)
 GO_TEST_FLAGS ?= -race
@@ -84,8 +85,8 @@ apply:
 .PHONY: install-go-tools
 install-go-tools:
 	@echo Installing go tools
-	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7.2
-	$(GO) install gotest.tools/gotestsum@v1.13.0
+	GOTOOLCHAIN=go$(GO_VERSION) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+	GOTOOLCHAIN=go$(GO_VERSION) $(GO) install gotest.tools/gotestsum@v1.13.0
 
 ## Ensures golangci-lint is installed
 .PHONY: ensure-golangci-lint

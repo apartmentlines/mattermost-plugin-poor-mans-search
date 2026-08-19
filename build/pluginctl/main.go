@@ -8,12 +8,16 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
-const commandTimeout = 120 * time.Second
+const (
+	commandTimeout         = 120 * time.Second
+	unixSocketProbeTimeout = time.Second
+)
 
 const helpText = `
 Usage:
@@ -75,12 +79,12 @@ func getClient(ctx context.Context) (*model.Client4, error) {
 
 	client, connected := getUnixClient(socketPath)
 	if connected {
-		log.Printf("Connecting using local mode over %s", socketPath)
+		log.Printf("Connecting using local mode over %s", strconv.Quote(socketPath))
 		return client, nil
 	}
 
 	if os.Getenv("MM_LOCALSOCKETPATH") != "" {
-		log.Printf("No socket found at %s for local mode deployment. Attempting to authenticate with credentials.", socketPath)
+		log.Printf("No socket found at %s for local mode deployment. Attempting to authenticate with credentials.", strconv.Quote(socketPath))
 	}
 
 	siteURL := os.Getenv("MM_SERVICESETTINGS_SITEURL")
@@ -94,13 +98,13 @@ func getClient(ctx context.Context) (*model.Client4, error) {
 
 	client = model.NewAPIv4Client(siteURL)
 	if adminToken != "" {
-		log.Printf("Authenticating using token against %s.", siteURL)
+		log.Printf("Authenticating using token against %s.", strconv.Quote(siteURL))
 		client.SetToken(adminToken)
 		return client, nil
 	}
 
 	if adminUsername != "" && adminPassword != "" {
-		log.Printf("Authenticating as %s against %s.", adminUsername, siteURL)
+		log.Printf("Authenticating as %s against %s.", strconv.Quote(adminUsername), strconv.Quote(siteURL))
 		_, _, err := client.Login(ctx, adminUsername, adminPassword)
 		if err != nil {
 			return nil, fmt.Errorf("failed to login as %s: %w", adminUsername, err)
@@ -113,8 +117,11 @@ func getClient(ctx context.Context) (*model.Client4, error) {
 }
 
 func getUnixClient(socketPath string) (*model.Client4, bool) {
-	_, err := net.Dial("unix", socketPath)
+	conn, err := net.DialTimeout("unix", socketPath, unixSocketProbeTimeout) // #nosec G704 -- local developers explicitly configure the Unix socket path.
 	if err != nil {
+		return nil, false
+	}
+	if err := conn.Close(); err != nil {
 		return nil, false
 	}
 
@@ -122,7 +129,7 @@ func getUnixClient(socketPath string) (*model.Client4, bool) {
 }
 
 func deploy(ctx context.Context, client *model.Client4, pluginID, bundlePath string) error {
-	pluginBundle, err := os.Open(bundlePath) // #nosec G304 -- bundlePath is provided by the developer running pluginctl.
+	pluginBundle, err := os.Open(bundlePath) // #nosec G304,G703 -- bundlePath is provided by the developer running pluginctl.
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %w", bundlePath, err)
 	}

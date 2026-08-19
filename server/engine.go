@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/xml"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/mattermost/mattermost/server/public/model"
+	"golang.org/x/net/html"
 )
 
 const (
@@ -374,32 +373,27 @@ func highlightedTerms(fragments []string, tag string) []string {
 	var terms []string
 
 	for _, fragment := range fragments {
-		decoder := xml.NewDecoder(strings.NewReader(fragment))
+		tokenizer := html.NewTokenizer(strings.NewReader(fragment))
 		inMatch := false
 
-		for {
-			token, err := decoder.Token()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				break
-			}
-
-			switch typed := token.(type) {
-			case xml.StartElement:
-				if typed.Name.Local == tag {
+		for tokenType := tokenizer.Next(); tokenType != html.ErrorToken; tokenType = tokenizer.Next() {
+			switch tokenType {
+			case html.StartTagToken:
+				name, _ := tokenizer.TagName()
+				if string(name) == tag {
 					inMatch = true
 				}
-			case xml.EndElement:
-				if typed.Name.Local == tag {
+			case html.EndTagToken:
+				name, _ := tokenizer.TagName()
+				if string(name) == tag {
 					inMatch = false
 				}
-			case xml.CharData:
-				if !inMatch || len(typed) == 0 {
+			case html.TextToken:
+				text := tokenizer.Text()
+				if !inMatch || len(text) == 0 {
 					continue
 				}
-				term := strings.Trim(string(typed), "_*~")
+				term := strings.Trim(string(text), "_*~")
 				if term != "" && !seen[term] {
 					seen[term] = true
 					terms = append(terms, term)

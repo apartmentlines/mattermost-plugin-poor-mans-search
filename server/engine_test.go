@@ -155,8 +155,9 @@ func TestHighlightedTermsExtractsMarkedTerms(t *testing.T) {
 		"<mark>Apples</mark> and oranges and <mark>apple</mark>",
 		"Johnny <mark>Appleseed</mark>",
 		"That does not <mark>apply</mark> to me",
+		"Bleve escapes <mark>&lt;HTML&gt;</mark> in highlighted fragments",
 	}
-	expected := []string{"Apples", "apple", "Appleseed", "apply"}
+	expected := []string{"Apples", "apple", "Appleseed", "apply", "<HTML>"}
 
 	actual := highlightedTerms(fragments, "mark")
 	if len(actual) != len(expected) {
