@@ -1,3 +1,7 @@
+### v1.1.2 - 08/19/2026
+
+* **Wed Aug 19 2026:** Update dependencies and toolchains
+
 ### v1.1.1 - 05/31/2026
 
 * **Sun May 31 2026:** Document initial search indexing
